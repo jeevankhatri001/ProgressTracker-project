@@ -1,4 +1,4 @@
-from exercise import Exercise
+from models.exercise import Exercise
 class WorkoutDay:
     ALLOWED_DAYS = {"sunday","monday","tuesday","wednesday","thursday","friday","saturday"}
     def __init__(self,day_name,workout_label):

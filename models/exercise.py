@@ -1,7 +1,7 @@
 class Exercise:
     ALLOWED_MUSCLE_GROUPS = {
-        "chest", "back", "shoulders", "biceps", "triceps",
-        "legs", "calves", "glutes", "quads", "hamstrings",
+        "chest", "back", "shoulder", "biceps", "triceps",
+        "legs", "calves", "glutes", "quads", "hamstring",
         "abs", "full body"
     }
 

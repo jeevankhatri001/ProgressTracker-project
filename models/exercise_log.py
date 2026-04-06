@@ -1,5 +1,5 @@
-from exercise import Exercise
-from set_entry import SetEntry
+from models.exercise import Exercise
+from models.set_entry import SetEntry
 class ExerciseLog:
     def __init__(self,exercise):
         if not isinstance(exercise,Exercise):
@@ -27,6 +27,14 @@ class ExerciseLog:
             result += str(set_entry) + "\n"
 
         return result
+    
+    @property
+    def exercise(self):
+        return self._exercise
+    
+    @property
+    def set_entry(self):
+        return self._set_entries
 
     def to_dict(self):
         return{
