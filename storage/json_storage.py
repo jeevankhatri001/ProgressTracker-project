@@ -34,6 +34,7 @@ def load_plan():
         return None
     
     
+    
 def save_sessions(sessions):
     if not isinstance(sessions, list):
         raise ValueError("Expected a list of WorkoutSession objects")

@@ -1,5 +1,5 @@
 {
-    "plan_name": "Jeevan's Plan",
+    "plan_name": "Jeevan's plan",
     "workout_days": [
         {
             "day_name": "sunday",
@@ -8,38 +8,6 @@
                 {
                     "name": "Leg Curls",
                     "muscle_group": "hamstring"
-                },
-                {
-                    "name": "RDL;s",
-                    "muscle_group": "hamstring"
-                },
-                {
-                    "name": "hip thurst",
-                    "muscle_group": "glutes"
-                },
-                {
-                    "name": "Hip Abductors",
-                    "muscle_group": "glutes"
-                },
-                {
-                    "name": "Calf Raises",
-                    "muscle_group": "calves"
-                },
-                {
-                    "name": "DB shoulder press",
-                    "muscle_group": "shoulder"
-                },
-                {
-                    "name": "Lateral raise",
-                    "muscle_group": "shoulder"
-                },
-                {
-                    "name": "Rare delts fly",
-                    "muscle_group": "shoulder"
-                },
-                {
-                    "name": "Rope pushdown",
-                    "muscle_group": "triceps"
                 }
             ]
         },
@@ -48,60 +16,48 @@
             "workout_label": "back & biceps",
             "exercises": [
                 {
-                    "name": "Single-hand pullover",
-                    "muscle_group": "back"
-                },
-                {
-                    "name": "incline DB row",
-                    "muscle_group": "back"
-                },
-                {
-                    "name": "underhand barbell row",
+                    "name": "row",
                     "muscle_group": "back"
                 }
             ]
         },
         {
             "day_name": "tuesday",
-            "workout_label": "chest &triceps",
+            "workout_label": "chest",
             "exercises": [
                 {
-                    "name": "incline db press",
+                    "name": "DB press",
                     "muscle_group": "chest"
                 }
             ]
         },
         {
             "day_name": "wednesday",
-            "workout_label": "arms",
+            "workout_label": "leg",
             "exercises": [
                 {
-                    "name": "incline db curls",
-                    "muscle_group": "biceps"
-                }
-            ]
-        },
-        {
-            "day_name": "thursday",
-            "workout_label": "legs",
-            "exercises": [
-                {
-                    "name": "squats",
+                    "name": "Squat",
                     "muscle_group": "legs"
                 }
             ]
         },
         {
-            "day_name": "friday",
-            "workout_label": "chest & back",
+            "day_name": "thursday",
+            "workout_label": "arms",
             "exercises": [
                 {
-                    "name": "lats pulldown",
-                    "muscle_group": "back"
-                },
+                    "name": "Biceps Curls",
+                    "muscle_group": "biceps"
+                }
+            ]
+        },
+        {
+            "day_name": "friday",
+            "workout_label": "back and chest",
+            "exercises": [
                 {
-                    "name": "machine chest press",
-                    "muscle_group": "chest"
+                    "name": "deadlift",
+                    "muscle_group": "back"
                 }
             ]
         }
