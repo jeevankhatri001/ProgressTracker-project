@@ -4,8 +4,12 @@ from fastapi.responses import FileResponse
 import os
 import sys
 
-# Add parent directory to path to import models and storage
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
+
+for path in (PROJECT_ROOT, BACKEND_DIR):
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 # Import routes
 from app.api.routes import users, plans, sessions, analytics, export
@@ -51,8 +55,8 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "main:app",
+        app,
         host="0.0.0.0",
         port=8000,
-        reload=True
+        reload=False
     )

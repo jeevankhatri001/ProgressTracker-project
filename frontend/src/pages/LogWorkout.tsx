@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Typography, Card, CardContent, Button, Grid, CircularProgress } from '@mui/material';
 import { useSessions } from '../hooks';
 

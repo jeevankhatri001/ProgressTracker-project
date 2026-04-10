@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Card, CardContent, Grid, Typography, Button, CircularProgress, Alert } from '@mui/material';
 import { useUser, usePlan, useSessions } from '../hooks';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';

@@ -5,7 +5,12 @@ import os
 from io import StringIO
 import csv
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../'))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../'))
+BACKEND_DIR = os.path.join(PROJECT_ROOT, 'backend')
+
+for path in (PROJECT_ROOT, BACKEND_DIR):
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 from storage.json_storage import load_user, load_plan, load_sessions
 from storage.export import (

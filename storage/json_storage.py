@@ -3,16 +3,29 @@ import os
 from models.user_profile import UserProfile
 from models.workout_plan import WorkoutPlan
 from models.workout_session import WorkoutSession
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+USER_FILE = os.path.join(DATA_DIR, "user.json")
+PLAN_FILE = os.path.join(DATA_DIR, "plan.json")
+SESSION_FILE = os.path.join(DATA_DIR, "session.json")
+
+
+def ensure_data_dir():
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+
 # Save User Information
 def save_user(user):
     if not isinstance(user,UserProfile):
         raise ValueError("Expected userProfile Object")
-    with open("data/user.json","w") as f:
+    ensure_data_dir()
+    with open(USER_FILE,"w") as f:
         json.dump(user.to_dict(),f,indent=4)
 # Load user information
 def load_user():
     try:
-        with open("data/user.json","r")as f:
+        with open(USER_FILE,"r")as f:
             data = json.load(f)
             return UserProfile.from_dict(data)
     except FileNotFoundError:
@@ -22,13 +35,14 @@ def load_user():
 def save_plan(plan):
     if not isinstance(plan,WorkoutPlan):
         raise ValueError("Expected WorkoutPlan object")
-    with open("data/plan.json","w") as f:
+    ensure_data_dir()
+    with open(PLAN_FILE,"w") as f:
         json.dump(plan.to_dict(),f,indent=4)
         
 # load plan
 def load_plan():
     try:
-        with open("data/plan.json","r") as f:
+        with open(PLAN_FILE,"r") as f:
             data = json.load(f)
             return WorkoutPlan.from_dict(data)
     except FileNotFoundError:
@@ -44,12 +58,13 @@ def save_sessions(sessions):
         if not isinstance(s, WorkoutSession):
             raise ValueError("All items must be WorkoutSession objects")
 
-    with open("data/session.json", "w") as f:
+    ensure_data_dir()
+    with open(SESSION_FILE, "w") as f:
         json.dump([s.to_dict() for s in sessions], f, indent=4)
         
 def load_sessions():
     try:
-        with open("data/session.json", "r") as f:
+        with open(SESSION_FILE, "r") as f:
             data = json.load(f)
             return [WorkoutSession.from_dict(d) for d in data]
     except FileNotFoundError:
@@ -109,8 +124,8 @@ def edit_session_by_date(target_date, updated_session):
 def delete_plan():
     """Delete the workout plan file. Returns True if successful, False otherwise."""
     try:
-        if os.path.exists("data/plan.json"):
-            os.remove("data/plan.json")
+        if os.path.exists(PLAN_FILE):
+            os.remove(PLAN_FILE)
             return True
         return False
     except Exception as e:
@@ -121,8 +136,8 @@ def delete_plan():
 def delete_user():
     """Delete the user profile file. Returns True if successful, False otherwise."""
     try:
-        if os.path.exists("data/user.json"):
-            os.remove("data/user.json")
+        if os.path.exists(USER_FILE):
+            os.remove(USER_FILE)
             return True
         return False
     except Exception as e:

@@ -3,8 +3,12 @@ from typing import Optional
 import sys
 import os
 
-# Add parent directories to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../../'))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../'))
+BACKEND_DIR = os.path.join(PROJECT_ROOT, 'backend')
+
+for path in (PROJECT_ROOT, BACKEND_DIR):
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 from models.user_profile import UserProfile
 from storage.json_storage import save_user, load_user, delete_user

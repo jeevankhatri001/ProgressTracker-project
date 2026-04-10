@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Typography, Card, CardContent, Grid, CircularProgress } from '@mui/material';
 import { useAnalytics } from '../hooks';
 

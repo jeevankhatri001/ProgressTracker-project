@@ -1,7 +1,27 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
 import * as Types from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+function toApiError(error: unknown): Error {
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError<{ detail?: string; message?: string }>;
+
+    if (!axiosError.response) {
+      return new Error('Cannot reach the backend API. Start the FastAPI server on http://localhost:8000 and try again.');
+    }
+
+    const detail =
+      axiosError.response.data?.detail ||
+      axiosError.response.data?.message ||
+      axiosError.message ||
+      'Request failed.';
+
+    return new Error(detail);
+  }
+
+  return error instanceof Error ? error : new Error('Unexpected API error.');
+}
 
 class ApiClient {
   private client: AxiosInstance;
@@ -17,8 +37,12 @@ class ApiClient {
 
   // User endpoints
   async createUser(userData: Partial<Types.UserProfile>): Promise<Types.UserProfile> {
-    const response = await this.client.post('/user', userData);
-    return response.data;
+    try {
+      const response = await this.client.post('/user', userData);
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getUser(): Promise<Types.UserProfile | null> {
@@ -31,13 +55,21 @@ class ApiClient {
   }
 
   async deleteUser(): Promise<void> {
-    await this.client.delete('/user');
+    try {
+      await this.client.delete('/user');
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   // Plan endpoints
   async createPlan(planData: Types.WorkoutPlan): Promise<Types.WorkoutPlan> {
-    const response = await this.client.post('/plan', planData);
-    return response.data;
+    try {
+      const response = await this.client.post('/plan', planData);
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getPlan(): Promise<Types.WorkoutPlan | null> {
@@ -50,84 +82,148 @@ class ApiClient {
   }
 
   async deletePlan(): Promise<void> {
-    await this.client.delete('/plan');
+    try {
+      await this.client.delete('/plan');
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   // Session endpoints
   async createSession(sessionData: Types.WorkoutSession): Promise<Types.WorkoutSession> {
-    const response = await this.client.post('/sessions', sessionData);
-    return response.data;
+    try {
+      const response = await this.client.post('/sessions', sessionData);
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getSessions(filters?: { date?: string; label?: string }): Promise<Types.WorkoutSession[]> {
-    const response = await this.client.get('/sessions', { params: filters });
-    return response.data;
+    try {
+      const response = await this.client.get('/sessions', { params: filters });
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async deleteSession(date: string): Promise<void> {
-    await this.client.delete(`/sessions/${date}`);
+    try {
+      await this.client.delete(`/sessions/${date}`);
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   // Analytics endpoints
   async getPersonalRecords(): Promise<any> {
-    const response = await this.client.get('/analytics/personal-records');
-    return response.data;
+    try {
+      const response = await this.client.get('/analytics/personal-records');
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getProgression(exercise: string): Promise<any> {
-    const response = await this.client.get('/analytics/progression', { params: { exercise } });
-    return response.data;
+    try {
+      const response = await this.client.get('/analytics/progression', { params: { exercise } });
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getMuscleGroupStats(): Promise<any> {
-    const response = await this.client.get('/analytics/muscle-groups');
-    return response.data;
+    try {
+      const response = await this.client.get('/analytics/muscle-groups');
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getExerciseFrequency(): Promise<any> {
-    const response = await this.client.get('/analytics/exercise-frequency');
-    return response.data;
+    try {
+      const response = await this.client.get('/analytics/exercise-frequency');
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getSessionFrequency(): Promise<any> {
-    const response = await this.client.get('/analytics/session-frequency');
-    return response.data;
+    try {
+      const response = await this.client.get('/analytics/session-frequency');
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getVolumeSummary(): Promise<Types.VolumeSummary> {
-    const response = await this.client.get('/analytics/volume-summary');
-    return response.data;
+    try {
+      const response = await this.client.get('/analytics/volume-summary');
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getAverageWeight(exercise: string): Promise<any> {
-    const response = await this.client.get('/analytics/average-weight', { params: { exercise } });
-    return response.data;
+    try {
+      const response = await this.client.get('/analytics/average-weight', { params: { exercise } });
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async getStrengthProgress(): Promise<any> {
-    const response = await this.client.get('/analytics/strength-progress');
-    return response.data;
+    try {
+      const response = await this.client.get('/analytics/strength-progress');
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   // Export endpoints
   async exportSessionsCSV(): Promise<Blob> {
-    const response = await this.client.get('/export/sessions/csv', { responseType: 'blob' });
-    return response.data;
+    try {
+      const response = await this.client.get('/export/sessions/csv', { responseType: 'blob' });
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async exportUserProfileCSV(): Promise<Blob> {
-    const response = await this.client.get('/export/user-profile/csv', { responseType: 'blob' });
-    return response.data;
+    try {
+      const response = await this.client.get('/export/user-profile/csv', { responseType: 'blob' });
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async exportPlanCSV(): Promise<Blob> {
-    const response = await this.client.get('/export/plan/csv', { responseType: 'blob' });
-    return response.data;
+    try {
+      const response = await this.client.get('/export/plan/csv', { responseType: 'blob' });
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   async exportProgressReport(): Promise<Blob> {
-    const response = await this.client.get('/export/progress-report', { responseType: 'blob' });
-    return response.data;
+    try {
+      const response = await this.client.get('/export/progress-report', { responseType: 'blob' });
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   // Helper for downloading files
