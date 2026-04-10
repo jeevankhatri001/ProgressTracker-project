@@ -45,10 +45,4 @@ class Exercise:
     
     @classmethod
     def from_dict(cls, data):
-        obj = cls(data["name"], data["muscle_group"])
-
-        for ex_data in data["exercises"]:
-            exercise = Exercise.from_dict(ex_data)
-            obj.add_exercise(exercise)
-
-        return obj
+        return cls(data["name"], data["muscle_group"])
