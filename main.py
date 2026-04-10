@@ -5,6 +5,17 @@ from models.workout_plan import WorkoutPlan
 from models.set_entry import SetEntry
 from models.exercise_log import ExerciseLog
 from models.workout_session import WorkoutSession
+from models.analytics import (
+    get_personal_records,
+    get_progression_by_exercise,
+    calculate_total_volume,
+    get_stats_by_muscle_group,
+    get_exercise_frequency,
+    get_session_frequency_by_day,
+    get_total_volume_summary,
+    calculate_average_weight,
+    get_strength_progress_summary
+)
 
 from storage.json_storage import (
     save_user,
@@ -13,6 +24,19 @@ from storage.json_storage import (
     load_plan,
     save_sessions,
     load_sessions,
+    delete_session_by_date,
+    delete_session_by_index,
+    delete_plan,
+    delete_user,
+    find_sessions_by_date,
+    find_sessions_by_label,
+)
+
+from storage.export import (
+    export_sessions_to_csv,
+    export_user_profile_to_csv,
+    export_plan_to_csv,
+    generate_progress_report,
 )
 
 
@@ -229,6 +253,233 @@ def view_sessions(sessions):
         print("Invalid choice.")
 
 
+def view_analytics(sessions):
+    """Display progress analytics and trends."""
+    print("\n--- Progress Analytics ---")
+
+    if not sessions:
+        print("No sessions recorded yet. Log some workouts to see analytics!")
+        return
+
+    print("\n1. View Personal Records")
+    print("2. View Exercise Progression")
+    print("3. View Exercise Frequency")
+    print("4. View Muscle Group Statistics")
+    print("5. View Volume Summary")
+    print("6. View Strength Progress")
+    print("7. Back to Menu")
+
+    choice = input("Enter your choice: ").strip()
+
+    if choice == "1":
+        prs = get_personal_records(sessions)
+        if not prs:
+            print("No exercise data available.")
+            return
+        print("\n" + "=" * 50)
+        print("         PERSONAL RECORDS (MAX WEIGHT)")
+        print("=" * 50)
+        for ex_name in sorted(prs.keys()):
+            data = prs[ex_name]
+            print(f"{ex_name:35s} {data['max_weight']:6.1f}kg")
+            print(f"  └─ {data['reps']} reps on {data['date']}")
+        print()
+
+    elif choice == "2":
+        ex_name = input("Enter exercise name to track: ").strip()
+        progression = get_progression_by_exercise(sessions, ex_name)
+        if not progression:
+            print(f"No data found for '{ex_name}'.")
+            return
+        print(f"\n" + "=" * 50)
+        print(f"         PROGRESSION: {ex_name.upper()}")
+        print("=" * 50)
+        for entry in progression:
+            print(f"{entry['date']} - Set {entry['set_num']}: {entry['weight']}kg x {entry['reps']} reps")
+        print()
+
+    elif choice == "3":
+        frequency = get_exercise_frequency(sessions)
+        if not frequency:
+            print("No exercise data available.")
+            return
+        print("\n" + "=" * 50)
+        print("         EXERCISE FREQUENCY")
+        print("=" * 50)
+        for ex_name in sorted(frequency.keys(), key=lambda x: frequency[x], reverse=True):
+            print(f"{ex_name:40s} {frequency[ex_name]:3d} times")
+        print()
+
+    elif choice == "4":
+        stats = get_stats_by_muscle_group(sessions)
+        if not stats:
+            print("No muscle group data available.")
+            return
+        print("\n" + "=" * 50)
+        print("         MUSCLE GROUP STATISTICS")
+        print("=" * 50)
+        for mg in sorted(stats.keys()):
+            s = stats[mg]
+            print(f"{mg.title():20s} Sets: {s['total_sets']:3d} | Volume: {s['total_volume']:8.1f} | Reps: {s['total_reps']:5d}")
+            print(f"  Exercises: {', '.join(s['exercises'])}")
+        print()
+
+    elif choice == "5":
+        summary = get_total_volume_summary(sessions)
+        print("\n" + "=" * 50)
+        print("         VOLUME SUMMARY")
+        print("=" * 50)
+        print(f"Total Volume:        {summary['total_volume']:10.1f} kg×reps")
+        print(f"Average per Session: {summary['avg_per_session']:10.1f} kg×reps")
+        print(f"Total Sessions:      {summary['num_sessions']:10d}")
+        print()
+
+    elif choice == "6":
+        progress = get_strength_progress_summary(sessions)
+        if not progress:
+            print("Need at least 2 sessions with exercises to show progress.")
+            return
+        print("\n" + "=" * 50)
+        print("         STRENGTH PROGRESS")
+        print("=" * 50)
+        improved = {k: v for k, v in progress.items() if v['improved']}
+        if improved:
+            for ex_name in sorted(improved.keys()):
+                data = improved[ex_name]
+                print(f"✓ {ex_name}: {data['prev_max']}kg → {data['current_max']}kg (+{data['improvement']}kg)")
+        else:
+            print("No strength gains detected yet. Keep training!")
+        print()
+
+    elif choice == "7":
+        return
+
+    else:
+        print("Invalid choice.")
+
+
+def manage_data(plan, sessions, user):
+    """Menu for editing and deleting data."""
+    print("\n--- Manage Data ---")
+    print("1. Delete a Session by Date")
+    print("2. Delete Workout Plan")
+    print("3. Delete User Profile")
+    print("4. Back to Menu")
+
+    choice = input("Enter your choice: ").strip()
+
+    if choice == "1":
+        if not sessions:
+            print("No sessions to delete.")
+            return sessions
+        print("\nAvailable sessions:")
+        for i, session in enumerate(sessions, 1):
+            print(f"{i}. {session.date} - {session.workout_label.capitalize()}")
+
+        date = input("Enter date of session to delete (YYYY-MM-DD): ").strip()
+        if delete_session_by_date(date):
+            print(f"Session on {date} deleted successfully.")
+            return load_sessions()
+        else:
+            print(f"No session found for {date}.")
+            return sessions
+
+    elif choice == "2":
+        if plan is None:
+            print("No workout plan to delete.")
+            return plan
+        confirm = input("Are you sure you want to delete the workout plan? (yes/no): ").strip().lower()
+        if confirm == "yes":
+            if delete_plan():
+                print("Workout plan deleted successfully.")
+                return None
+            else:
+                print("Error deleting plan.")
+                return plan
+        return plan
+
+    elif choice == "3":
+        if user is None:
+            print("No user profile to delete.")
+            return user
+        confirm = input("Are you sure you want to delete your profile? (yes/no): ").strip().lower()
+        if confirm == "yes":
+            if delete_user():
+                print("User profile deleted successfully.")
+                return None
+            else:
+                print("Error deleting user.")
+                return user
+        return user
+
+    elif choice == "4":
+        return None if choice == "4" else (user, plan, sessions)
+
+    return None
+
+
+def export_data(user, plan, sessions):
+    """Menu for exporting data to CSV and reports."""
+    print("\n--- Export Data ---")
+    print("1. Export Sessions to CSV")
+    print("2. Export User Profile to CSV")
+    print("3. Export Workout Plan to CSV")
+    print("4. Generate Progress Report")
+    print("5. Back to Menu")
+
+    choice = input("Enter your choice: ").strip()
+
+    if choice == "1":
+        if not sessions:
+            print("No sessions to export.")
+            return
+        filepath = input("Enter filepath for CSV (default: exports/sessions.csv): ").strip()
+        if not filepath:
+            filepath = "exports/sessions.csv"
+        export_sessions_to_csv(sessions, filepath)
+
+    elif choice == "2":
+        if not user:
+            print("No user profile to export.")
+            return
+        filepath = input("Enter filepath for CSV (default: exports/user.csv): ").strip()
+        if not filepath:
+            filepath = "exports/user.csv"
+        export_user_profile_to_csv(user, filepath)
+
+    elif choice == "3":
+        if not plan:
+            print("No workout plan to export.")
+            return
+        filepath = input("Enter filepath for CSV (default: exports/plan.csv): ").strip()
+        if not filepath:
+            filepath = "exports/plan.csv"
+        export_plan_to_csv(plan, filepath)
+
+    elif choice == "4":
+        if not user:
+            print("Create a user profile first.")
+            return
+
+        # Gather analytics
+        analytics_data = {}
+        if sessions:
+            analytics_data['personal_records'] = get_personal_records(sessions)
+            analytics_data['frequency'] = get_exercise_frequency(sessions)
+            analytics_data['volume_summary'] = get_total_volume_summary(sessions)
+            analytics_data['muscle_groups'] = get_stats_by_muscle_group(sessions)
+
+        filepath = input("Enter filepath for report (default: exports/progress_report.txt): ").strip()
+        if not filepath:
+            filepath = "exports/progress_report.txt"
+        generate_progress_report(user, sessions, filepath, analytics_data)
+
+    elif choice == "5":
+        return
+
+        print("Invalid choice.")
+
+
 def main():
     user = load_user()
     plan = load_plan()
@@ -242,7 +493,10 @@ def main():
         print("2. Create/View Workout Plan")
         print("3. Log Workout Session")
         print("4. View Workout Sessions")
-        print("5. Exit")
+        print("5. View Progress Analytics")
+        print("6. Manage Data")
+        print("7. Export Data")
+        print("8. Exit")
 
         choice = input("Enter your choice: ").strip()
 
@@ -270,11 +524,22 @@ def main():
             view_sessions(sessions)
 
         elif choice == "5":
+            view_analytics(sessions)
+
+        elif choice == "6":
+            result = manage_data(plan, sessions, user)
+            if result is not None:
+                sessions = load_sessions()
+
+        elif choice == "7":
+            export_data(user, plan, sessions)
+
+        elif choice == "8":
             print("Exiting program.")
             break
 
         else:
-            print("Invalid choice. Please choose between 1 and 5.")
+            print("Invalid choice. Please choose between 1 and 8.")
 
 
 if __name__ == "__main__":
