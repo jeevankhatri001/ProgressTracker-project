@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 import sys
 import os
@@ -13,6 +13,7 @@ for path in (PROJECT_ROOT, BACKEND_DIR):
         sys.path.insert(0, path)
 
 from storage.json_storage import load_user, load_plan, load_sessions
+from app.auth import get_active_user_id
 from storage.export import (
     export_sessions_to_csv,
     export_user_profile_to_csv,
@@ -30,9 +31,9 @@ router = APIRouter()
 
 
 @router.get("/sessions/csv")
-async def export_sessions_csv():
+async def export_sessions_csv(user_id: str = Depends(get_active_user_id)):
     """Export all sessions to CSV"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
     if not sessions:
         raise HTTPException(status_code=404, detail="No sessions to export")
 
@@ -67,9 +68,9 @@ async def export_sessions_csv():
 
 
 @router.get("/user-profile/csv")
-async def export_user_csv():
+async def export_user_csv(user_id: str = Depends(get_active_user_id)):
     """Export user profile to CSV"""
-    user = load_user()
+    user = load_user(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="No user profile to export")
 
@@ -100,9 +101,9 @@ async def export_user_csv():
 
 
 @router.get("/plan/csv")
-async def export_plan_csv():
+async def export_plan_csv(user_id: str = Depends(get_active_user_id)):
     """Export workout plan to CSV"""
-    plan = load_plan()
+    plan = load_plan(user_id)
     if not plan:
         raise HTTPException(status_code=404, detail="No workout plan to export")
 
@@ -132,10 +133,10 @@ async def export_plan_csv():
 
 
 @router.get("/progress-report")
-async def export_progress_report():
+async def export_progress_report(user_id: str = Depends(get_active_user_id)):
     """Generate and export progress report"""
-    user = load_user()
-    sessions = load_sessions()
+    user = load_user(user_id)
+    sessions = load_sessions(user_id)
 
     if not user:
         raise HTTPException(status_code=404, detail="No user profile found")

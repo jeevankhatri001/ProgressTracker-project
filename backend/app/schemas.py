@@ -2,6 +2,18 @@ from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
+
+class LoginRequest(BaseModel):
+    """Request schema for a lightweight local login"""
+    username: str = Field(..., min_length=1, max_length=50)
+
+
+class LoginResponse(BaseModel):
+    """Response schema for active local account"""
+    user_id: str
+    username: str
+    has_profile: bool
+
 # ── User Profile Schema ──
 
 class UserProfileCreate(BaseModel):
@@ -41,7 +53,18 @@ class ExerciseCreate(BaseModel):
         valid = {
             "chest", "back", "shoulder", "biceps", "triceps",
             "legs", "calves", "glutes", "quads", "hamstring",
-            "abs", "full body"
+            "abs", "full body", "upper chest", "middle chest", "lower chest",
+            "inner chest", "upper back", "middle back", "lower back", "lats",
+            "traps", "front delts", "side delts", "rear delts",
+            "long head biceps", "short head biceps", "brachialis",
+            "long head triceps", "lateral head triceps", "medial head triceps",
+            "upper legs", "inner thighs", "outer thighs", "adductors",
+            "gastrocnemius", "soleus", "outer calves", "upper glutes",
+            "lower glutes", "glute medius", "glute max", "upper quads",
+            "lower quads", "vastus medialis", "vastus lateralis",
+            "rectus femoris", "upper hamstring", "lower hamstring",
+            "inner hamstring", "outer hamstring", "upper abs", "lower abs",
+            "obliques", "deep core"
         }
         if v.lower() not in valid:
             raise ValueError(f"Muscle group must be one of {valid}")

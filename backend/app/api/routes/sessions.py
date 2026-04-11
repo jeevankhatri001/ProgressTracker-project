@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 import sys
 import os
@@ -18,6 +18,7 @@ from storage.json_storage import (
     load_sessions, save_sessions, delete_session_by_date,
     find_sessions_by_date, find_sessions_by_label
 )
+from app.auth import get_active_user_id
 from app.schemas import WorkoutSessionCreate, WorkoutSessionResponse, SuccessResponse
 
 router = APIRouter()
@@ -53,7 +54,7 @@ def _session_to_response(session: WorkoutSession) -> WorkoutSessionResponse:
 
 
 @router.post("", response_model=WorkoutSessionResponse)
-async def create_session(session_data: WorkoutSessionCreate):
+async def create_session(session_data: WorkoutSessionCreate, user_id: str = Depends(get_active_user_id)):
     """Log a new workout session"""
     try:
         session = WorkoutSession(
@@ -72,9 +73,9 @@ async def create_session(session_data: WorkoutSessionCreate):
 
             session.add_exercise_log(exercise_log)
 
-        sessions = load_sessions()
+        sessions = load_sessions(user_id)
         sessions.append(session)
-        save_sessions(sessions)
+        save_sessions(sessions, user_id)
 
         return _session_to_response(session)
     except ValueError as e:
@@ -82,21 +83,25 @@ async def create_session(session_data: WorkoutSessionCreate):
 
 
 @router.get("", response_model=List[WorkoutSessionResponse])
-async def list_sessions(date: Optional[str] = Query(None), label: Optional[str] = Query(None)):
+async def list_sessions(
+    date: Optional[str] = Query(None),
+    label: Optional[str] = Query(None),
+    user_id: str = Depends(get_active_user_id),
+):
     """List sessions with optional filtering"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
 
     if date:
-        sessions = find_sessions_by_date(date)
+        sessions = find_sessions_by_date(date, user_id)
     elif label:
-        sessions = find_sessions_by_label(label)
+        sessions = find_sessions_by_label(label, user_id)
 
     return [_session_to_response(s) for s in sessions]
 
 
 @router.delete("/{session_date}")
-async def delete_session(session_date: str):
+async def delete_session(session_date: str, user_id: str = Depends(get_active_user_id)):
     """Delete a session by date"""
-    if delete_session_by_date(session_date):
+    if delete_session_by_date(session_date, user_id):
         return SuccessResponse(message=f"Session on {session_date} deleted successfully")
     raise HTTPException(status_code=404, detail=f"No session found on {session_date}")

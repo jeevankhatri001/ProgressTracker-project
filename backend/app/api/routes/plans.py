@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 import sys
 import os
@@ -14,6 +14,7 @@ from models.workout_plan import WorkoutPlan
 from models.workoutday import WorkoutDay
 from models.exercise import Exercise
 from storage.json_storage import save_plan, load_plan, delete_plan
+from app.auth import get_active_user_id
 from app.schemas import WorkoutPlanCreate, WorkoutPlanResponse, SuccessResponse
 
 router = APIRouter()
@@ -58,28 +59,28 @@ def _plan_to_response(plan: WorkoutPlan) -> WorkoutPlanResponse:
 
 
 @router.post("", response_model=WorkoutPlanResponse)
-async def create_plan(plan_data: WorkoutPlanCreate):
+async def create_plan(plan_data: WorkoutPlanCreate, user_id: str = Depends(get_active_user_id)):
     """Create a new workout plan"""
     try:
         plan = _create_plan_from_request(plan_data)
-        save_plan(plan)
+        save_plan(plan, user_id)
         return _plan_to_response(plan)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("", response_model=Optional[WorkoutPlanResponse])
-async def get_plan():
+async def get_plan(user_id: str = Depends(get_active_user_id)):
     """Get current workout plan"""
-    plan = load_plan()
+    plan = load_plan(user_id)
     if not plan:
         raise HTTPException(status_code=404, detail="No workout plan found")
     return _plan_to_response(plan)
 
 
 @router.delete("")
-async def delete_plan_endpoint():
+async def delete_plan_endpoint(user_id: str = Depends(get_active_user_id)):
     """Delete workout plan"""
-    if delete_plan():
+    if delete_plan(user_id):
         return SuccessResponse(message="Workout plan deleted successfully")
     raise HTTPException(status_code=404, detail="Workout plan not found")

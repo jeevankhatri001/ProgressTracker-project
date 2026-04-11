@@ -2,6 +2,7 @@ import axios, { AxiosError, AxiosInstance } from 'axios';
 import * as Types from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const AUTH_STORAGE_KEY = 'progress-tracker-auth';
 
 function toApiError(error: unknown): Error {
   if (axios.isAxiosError(error)) {
@@ -33,6 +34,46 @@ class ApiClient {
         'Content-Type': 'application/json',
       },
     });
+
+    const session = this.getStoredSession();
+    if (session) {
+      this.setActiveSession(session);
+    }
+  }
+
+  getStoredSession(): Types.AuthSession | null {
+    const stored = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!stored) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(stored) as Types.AuthSession;
+    } catch {
+      window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      return null;
+    }
+  }
+
+  setActiveSession(session: Types.AuthSession): void {
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+    this.client.defaults.headers.common['X-User-Id'] = session.user_id;
+  }
+
+  logout(): void {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    delete this.client.defaults.headers.common['X-User-Id'];
+  }
+
+  async login(username: string): Promise<Types.AuthSession> {
+    try {
+      const response = await this.client.post('/auth/login', { username });
+      const session = response.data as Types.AuthSession;
+      this.setActiveSession(session);
+      return session;
+    } catch (error) {
+      throw toApiError(error);
+    }
   }
 
   // User endpoints

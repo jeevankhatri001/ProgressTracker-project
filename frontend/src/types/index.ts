@@ -1,4 +1,10 @@
 // User Profile Types
+export interface AuthSession {
+  user_id: string;
+  username: string;
+  has_profile: boolean;
+}
+
 export interface UserProfile {
   name: string;
   age: number;

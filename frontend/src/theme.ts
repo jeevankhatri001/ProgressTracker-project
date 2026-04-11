@@ -2,36 +2,37 @@ import { createTheme } from '@mui/material/styles';
 
 const theme = createTheme({
   palette: {
+    mode: 'dark',
     primary: {
-      main: '#1976d2',
-      light: '#42a5f5',
-      dark: '#1565c0',
+      main: '#d7d7d0',
+      light: '#f0f0ea',
+      dark: '#9c9c96',
     },
     secondary: {
-      main: '#dc004e',
-      light: '#f73378',
-      dark: '#9a0036',
+      main: '#c9876f',
+      light: '#e0aa96',
+      dark: '#9c5c49',
     },
     success: {
-      main: '#2e7d32',
+      main: '#b9bbb3',
     },
     warning: {
-      main: '#ed6c02',
+      main: '#d1a95f',
     },
     error: {
-      main: '#d32f2f',
+      main: '#d56f66',
     },
     background: {
-      default: '#f5f5f5',
-      paper: '#ffffff',
+      default: '#141414',
+      paper: '#202020',
     },
     text: {
-      primary: '#212121',
-      secondary: '#757575',
+      primary: '#f1f1ed',
+      secondary: '#b1b1aa',
     },
   },
   typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Manrope", "Inter", "Helvetica", "Arial", sans-serif',
     h1: {
       fontSize: '2.5rem',
       fontWeight: 600,
@@ -84,8 +85,8 @@ const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          borderRadius: 8,
+          boxShadow: '0 18px 44px rgba(0, 0, 0, 0.28)',
         },
       },
     },

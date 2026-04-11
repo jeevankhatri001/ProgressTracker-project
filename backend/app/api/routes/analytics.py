@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Dict, List, Optional, Any
 import sys
 import os
@@ -11,6 +11,7 @@ for path in (PROJECT_ROOT, BACKEND_DIR):
         sys.path.insert(0, path)
 
 from storage.json_storage import load_sessions
+from app.auth import get_active_user_id
 from models.analytics import (
     get_personal_records,
     get_progression_by_exercise,
@@ -26,9 +27,9 @@ router = APIRouter()
 
 
 @router.get("/personal-records")
-async def personal_records():
+async def personal_records(user_id: str = Depends(get_active_user_id)):
     """Get personal records (max weight per exercise)"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
     if not sessions:
         raise HTTPException(status_code=404, detail="No sessions found")
 
@@ -47,9 +48,9 @@ async def personal_records():
 
 
 @router.get("/progression")
-async def progression(exercise: str = Query(..., description="Exercise name")):
+async def progression(exercise: str = Query(..., description="Exercise name"), user_id: str = Depends(get_active_user_id)):
     """Get weight progression for a specific exercise"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
     if not sessions:
         raise HTTPException(status_code=404, detail="No sessions found")
 
@@ -61,9 +62,9 @@ async def progression(exercise: str = Query(..., description="Exercise name")):
 
 
 @router.get("/muscle-groups")
-async def muscle_groups():
+async def muscle_groups(user_id: str = Depends(get_active_user_id)):
     """Get statistics by muscle group"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
     if not sessions:
         raise HTTPException(status_code=404, detail="No sessions found")
 
@@ -83,9 +84,9 @@ async def muscle_groups():
 
 
 @router.get("/exercise-frequency")
-async def exercise_frequency():
+async def exercise_frequency(user_id: str = Depends(get_active_user_id)):
     """Get how many times each exercise has been performed"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
     if not sessions:
         raise HTTPException(status_code=404, detail="No sessions found")
 
@@ -99,9 +100,9 @@ async def exercise_frequency():
 
 
 @router.get("/session-frequency")
-async def session_frequency():
+async def session_frequency(user_id: str = Depends(get_active_user_id)):
     """Get how many sessions per workout label"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
     if not sessions:
         raise HTTPException(status_code=404, detail="No sessions found")
 
@@ -115,9 +116,9 @@ async def session_frequency():
 
 
 @router.get("/volume-summary")
-async def volume_summary():
+async def volume_summary(user_id: str = Depends(get_active_user_id)):
     """Get overall volume statistics"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
     if not sessions:
         raise HTTPException(status_code=404, detail="No sessions found")
 
@@ -126,9 +127,9 @@ async def volume_summary():
 
 
 @router.get("/average-weight")
-async def average_weight(exercise: str = Query(..., description="Exercise name")):
+async def average_weight(exercise: str = Query(..., description="Exercise name"), user_id: str = Depends(get_active_user_id)):
     """Get average weight for a specific exercise"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
     if not sessions:
         raise HTTPException(status_code=404, detail="No sessions found")
 
@@ -140,9 +141,9 @@ async def average_weight(exercise: str = Query(..., description="Exercise name")
 
 
 @router.get("/strength-progress")
-async def strength_progress():
+async def strength_progress(user_id: str = Depends(get_active_user_id)):
     """Get strength progress (which exercises improved)"""
-    sessions = load_sessions()
+    sessions = load_sessions(user_id)
     if len(sessions) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 sessions to show progress")
 

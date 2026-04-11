@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import api from './services/api';
-import type { Exercise, SetEntry, UserProfile, WorkoutDay, WorkoutPlan, WorkoutSession } from './types';
+import type { AuthSession, Exercise, SetEntry, UserProfile, WorkoutDay, WorkoutPlan, WorkoutSession } from './types';
 
 type Page = 'dashboard' | 'plan' | 'log' | 'history' | 'analytics' | 'export' | 'settings';
 
@@ -39,7 +39,8 @@ type SessionFormState = {
 
 type EditableExercise = {
   name: string;
-  muscle_group: string;
+  mainMuscle: string;
+  subMuscle: string;
 };
 
 type EditableWorkoutDay = {
@@ -321,7 +322,31 @@ const presetSeeds: Record<number, { name: string; days: WorkoutDay[] }> = {
 
 const todayIso = new Date().toISOString().slice(0, 10);
 const weekdayOptions = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const muscleGroupOptions = ['chest', 'back', 'shoulder', 'biceps', 'triceps', 'legs', 'calves', 'glutes', 'quads', 'hamstring', 'abs', 'full body'];
+const muscleGroups = {
+  chest: ['upper chest', 'middle chest', 'lower chest', 'inner chest'],
+  back: ['upper back', 'middle back', 'lower back', 'lats', 'traps'],
+  shoulder: ['front delts', 'side delts', 'rear delts'],
+  biceps: ['long head biceps', 'short head biceps', 'brachialis'],
+  triceps: ['long head triceps', 'lateral head triceps', 'medial head triceps'],
+  legs: ['upper legs', 'inner thighs', 'outer thighs', 'adductors'],
+  calves: ['gastrocnemius', 'soleus', 'outer calves'],
+  glutes: ['upper glutes', 'lower glutes', 'glute medius', 'glute max'],
+  quads: ['upper quads', 'lower quads', 'vastus medialis', 'vastus lateralis', 'rectus femoris'],
+  hamstring: ['upper hamstring', 'lower hamstring', 'inner hamstring', 'outer hamstring'],
+  abs: ['upper abs', 'lower abs', 'obliques', 'deep core'],
+} as const;
+
+type MainMuscle = keyof typeof muscleGroups;
+
+const muscleGroupOptions = Object.keys(muscleGroups) as MainMuscle[];
+
+function createEditableExercise(): EditableExercise {
+  return {
+    name: '',
+    mainMuscle: 'chest',
+    subMuscle: muscleGroups.chest[0],
+  };
+}
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -420,10 +445,7 @@ function createCustomPlan(daysPerWeek: number): CustomPlanState {
       id: createId(),
       day_name: weekdayOptions[index % weekdayOptions.length],
       workout_label: `Day ${index + 1}`,
-      exercises: [
-        { name: '', muscle_group: 'full body' },
-        { name: '', muscle_group: 'full body' },
-      ],
+      exercises: [createEditableExercise(), createEditableExercise()],
     })),
   };
 }
@@ -438,7 +460,7 @@ function sanitizeCustomPlan(planState: CustomPlanState): WorkoutPlan {
         exercises: day.exercises
           .map((exercise) => ({
             name: exercise.name.trim(),
-            muscle_group: exercise.muscle_group.trim().toLowerCase(),
+            muscle_group: exercise.subMuscle.trim().toLowerCase(),
           }))
           .filter((exercise) => exercise.name.length > 0),
       }))
@@ -492,10 +514,12 @@ function deriveAnalytics(sessions: WorkoutSession[]) {
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
+  const [authSession, setAuthSession] = useState<AuthSession | null>(() => api.getStoredSession());
+  const [loginName, setLoginName] = useState('');
   const [user, setUser] = useState<UserProfile | null>(null);
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(api.getStoredSession()));
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
   const [notice, setNotice] = useState<AppNotice>(null);
   const [profileForm, setProfileForm] = useState<ProfileFormState>(createDefaultProfileForm);
@@ -516,8 +540,12 @@ export default function App() {
   }, [profileForm.training_days_per_week, user?.training_days_per_week]);
 
   useEffect(() => {
-    void loadApplication();
-  }, []);
+    if (authSession) {
+      void loadApplication();
+    } else {
+      setLoading(false);
+    }
+  }, [authSession]);
 
   useEffect(() => {
     if (plan && !sessionForm) {
@@ -542,6 +570,39 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextLoginName = loginName.trim();
+    if (!nextLoginName) {
+      setNotice({ kind: 'error', message: 'Enter a username to continue.' });
+      return;
+    }
+
+    setBusyLabel('Signing in');
+    setNotice(null);
+    try {
+      const session = await api.login(nextLoginName);
+      setAuthSession(session);
+      setActivePage('dashboard');
+    } catch (error) {
+      setNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Login failed.' });
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
+  function handleLogout() {
+    api.logout();
+    setAuthSession(null);
+    setUser(null);
+    setPlan(null);
+    setSessions([]);
+    setSessionForm(null);
+    setActivePage('dashboard');
+    setNotice(null);
+    setLoginName('');
   }
 
   async function handleCreateProfile(event: FormEvent<HTMLFormElement>) {
@@ -722,7 +783,7 @@ export default function App() {
           id: createId(),
           day_name: weekdayOptions[current.workout_days.length % weekdayOptions.length],
           workout_label: `Day ${current.workout_days.length + 1}`,
-          exercises: [{ name: '', muscle_group: 'full body' }],
+          exercises: [createEditableExercise()],
         },
       ],
     }));
@@ -742,7 +803,7 @@ export default function App() {
         day.id === dayId
           ? {
               ...day,
-              exercises: [...day.exercises, { name: '', muscle_group: 'full body' }],
+              exercises: [...day.exercises, createEditableExercise()],
             }
           : day,
       ),
@@ -757,7 +818,15 @@ export default function App() {
           ? {
               ...day,
               exercises: day.exercises.map((exercise, index) =>
-                index === exerciseIndex ? { ...exercise, [field]: value } : exercise,
+                index === exerciseIndex
+                  ? field === 'mainMuscle'
+                    ? {
+                        ...exercise,
+                        mainMuscle: value,
+                        subMuscle: muscleGroups[value as MainMuscle][0],
+                      }
+                    : { ...exercise, [field]: value }
+                  : exercise,
               ),
             }
           : day,
@@ -864,12 +933,43 @@ export default function App() {
     );
   }
 
+  if (!authSession) {
+    return (
+      <div className="shell shell-loading auth-shell">
+        <main className="login-stage">
+          <article className="panel login-panel">
+            <div className="hero-copy">
+              <p className="eyebrow">Progress Tracking</p>
+              <h1>Iron Ledger</h1>
+              <h3>Sign in to your own training space.</h3>
+              <p>Use a username to keep your profile, plan, sessions, analytics, and exports separate from everyone else.</p>
+            </div>
+
+            {notice && <div className={`notice notice-${notice.kind}`}>{notice.message}</div>}
+
+            <form className="login-form" onSubmit={handleLogin}>
+              <label>
+                <span>Username</span>
+                <input
+                  value={loginName}
+                  onChange={(event) => setLoginName(event.target.value)}
+                  placeholder="jeevan"
+                  autoFocus
+                />
+              </label>
+              <button className="primary-button" type="submit" disabled={!!busyLabel}>
+                {busyLabel || 'Login'}
+              </button>
+            </form>
+          </article>
+        </main>
+      </div>
+    );
+  }
+
   if (!activeUser) {
     return (
       <div className="shell">
-        <div className="background-orbit orbit-one" />
-        <div className="background-orbit orbit-two" />
-
         <aside className="sidebar">
           <div className="brand-block">
             <p className="eyebrow">Progress Tracking</p>
@@ -895,7 +995,10 @@ export default function App() {
           <div className="status-panel">
             <p className="eyebrow">Current Mode</p>
             <strong>First-time setup</strong>
-            <p>Create your profile and choose a split to unlock the full app.</p>
+            <p>Logged in as {authSession.username}. Create your profile and choose a split to unlock the full app.</p>
+            <button className="ghost-button sidebar-action" type="button" onClick={handleLogout}>
+              Logout
+            </button>
           </div>
         </aside>
 
@@ -1200,15 +1303,15 @@ export default function App() {
                 <AreaChart data={analytics.timeline}>
                   <defs>
                     <linearGradient id="volumeFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#d95d39" stopOpacity={0.45} />
-                      <stop offset="95%" stopColor="#d95d39" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#d7d7d0" stopOpacity={0.45} />
+                      <stop offset="95%" stopColor="#d7d7d0" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#d9cfbf" vertical={false} />
+                  <CartesianGrid stroke="rgba(241, 241, 237, 0.13)" vertical={false} />
                   <XAxis dataKey="date" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} />
                   <Tooltip />
-                  <Area type="monotone" dataKey="volume" stroke="#d95d39" fill="url(#volumeFill)" strokeWidth={3} />
+                  <Area type="monotone" dataKey="volume" stroke="#d7d7d0" fill="url(#volumeFill)" strokeWidth={3} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -1300,10 +1403,20 @@ export default function App() {
                         placeholder="Romanian Deadlift"
                       />
                       <select
-                        value={exercise.muscle_group}
-                        onChange={(event) => updateCustomExercise(day.id, exerciseIndex, 'muscle_group', event.target.value)}
+                        value={exercise.mainMuscle}
+                        onChange={(event) => updateCustomExercise(day.id, exerciseIndex, 'mainMuscle', event.target.value)}
                       >
                         {muscleGroupOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {toTitleCase(option)}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={exercise.subMuscle}
+                        onChange={(event) => updateCustomExercise(day.id, exerciseIndex, 'subMuscle', event.target.value)}
+                      >
+                        {muscleGroups[exercise.mainMuscle as MainMuscle].map((option) => (
                           <option key={option} value={option}>
                             {toTitleCase(option)}
                           </option>
@@ -1589,13 +1702,13 @@ export default function App() {
             <div className="chart-wrap">
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={analytics.timeline}>
-                  <CartesianGrid stroke="#d9cfbf" vertical={false} />
+                  <CartesianGrid stroke="rgba(241, 241, 237, 0.13)" vertical={false} />
                   <XAxis dataKey="date" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} />
                   <Tooltip />
                   <Bar dataKey="volume" radius={[10, 10, 0, 0]}>
                     {analytics.timeline.map((entry, index) => (
-                      <Cell key={`${entry.date}-${index}`} fill={index === analytics.timeline.length - 1 ? '#205c47' : '#d95d39'} />
+                      <Cell key={`${entry.date}-${index}`} fill={index === analytics.timeline.length - 1 ? '#d7d7d0' : '#c9876f'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -1815,9 +1928,6 @@ export default function App() {
 
   return (
     <div className="shell">
-      <div className="background-orbit orbit-one" />
-      <div className="background-orbit orbit-two" />
-
       <aside className="sidebar">
         <div className="brand-block">
           <p className="eyebrow">Progress Tracking</p>
@@ -1843,7 +1953,10 @@ export default function App() {
         <div className="status-panel">
           <p className="eyebrow">Current Mode</p>
           <strong>Training in progress</strong>
-          <p>{`${sessions.length} session${sessions.length === 1 ? '' : 's'} tracked so far.`}</p>
+          <p>{`${sessions.length} session${sessions.length === 1 ? '' : 's'} tracked so far for ${authSession.username}.`}</p>
+          <button className="ghost-button sidebar-action" type="button" onClick={handleLogout}>
+            Logout
+          </button>
         </div>
       </aside>
 
@@ -1855,6 +1968,10 @@ export default function App() {
           </div>
           <div className="topbar-meta">
             <div className="meta-chip">
+              <span>Account</span>
+              <strong>{authSession.username}</strong>
+            </div>
+            <div className="meta-chip">
               <span>Today</span>
               <strong>{formatDateLabel(todayIso)}</strong>
             </div>
@@ -1864,6 +1981,9 @@ export default function App() {
                 <strong>{busyLabel}</strong>
               </div>
             )}
+            <button className="ghost-button" type="button" onClick={handleLogout}>
+              Logout
+            </button>
           </div>
         </header>
 

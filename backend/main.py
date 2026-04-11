@@ -12,7 +12,7 @@ for path in (PROJECT_ROOT, BACKEND_DIR):
         sys.path.insert(0, path)
 
 # Import routes
-from app.api.routes import users, plans, sessions, analytics, export
+from app.api.routes import auth, users, plans, sessions, analytics, export
 
 # Create FastAPI app
 app = FastAPI(
@@ -24,13 +24,14 @@ app = FastAPI(
 # Add CORS middleware for localhost development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routes
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(users.router, prefix="/api/user", tags=["User Profile"])
 app.include_router(plans.router, prefix="/api/plan", tags=["Workout Plan"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["Workout Sessions"])
