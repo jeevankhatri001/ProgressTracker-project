@@ -12,7 +12,7 @@ for path in (PROJECT_ROOT, BACKEND_DIR):
         sys.path.insert(0, path)
 
 # Import routes
-from app.api.routes import auth, users, plans, sessions, analytics, export
+from app.api.routes import admin, auth, users, plans, sessions, analytics, export
 
 # Create FastAPI app
 app = FastAPI(
@@ -32,6 +32,7 @@ app.add_middleware(
 
 # Include routes
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(users.router, prefix="/api/user", tags=["User Profile"])
 app.include_router(plans.router, prefix="/api/plan", tags=["Workout Plan"])
 app.include_router(sessions.router, prefix="/api/sessions", tags=["Workout Sessions"])

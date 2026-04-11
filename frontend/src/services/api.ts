@@ -12,11 +12,18 @@ function toApiError(error: unknown): Error {
       return new Error('Cannot reach the backend API. Start the FastAPI server on http://localhost:8000 and try again.');
     }
 
-    const detail =
-      axiosError.response.data?.detail ||
-      axiosError.response.data?.message ||
-      axiosError.message ||
-      'Request failed.';
+    const rawDetail = axiosError.response.data?.detail || axiosError.response.data?.message;
+    const detail = Array.isArray(rawDetail)
+      ? rawDetail
+          .map((item) => {
+            if (item && typeof item === 'object' && 'loc' in item && 'msg' in item) {
+              const loc = Array.isArray(item.loc) ? item.loc.join('.') : item.loc;
+              return `${loc}: ${item.msg}`;
+            }
+            return JSON.stringify(item);
+          })
+          .join(' | ')
+      : rawDetail || axiosError.message || 'Request failed.';
 
     return new Error(detail);
   }
@@ -58,11 +65,17 @@ class ApiClient {
   setActiveSession(session: Types.AuthSession): void {
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
     this.client.defaults.headers.common['X-User-Id'] = session.user_id;
+    if (session.email) {
+      this.client.defaults.headers.common['X-User-Email'] = session.email;
+    } else {
+      delete this.client.defaults.headers.common['X-User-Email'];
+    }
   }
 
   logout(): void {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
     delete this.client.defaults.headers.common['X-User-Id'];
+    delete this.client.defaults.headers.common['X-User-Email'];
   }
 
   async login(username: string): Promise<Types.AuthSession> {
@@ -71,6 +84,45 @@ class ApiClient {
       const session = response.data as Types.AuthSession;
       this.setActiveSession(session);
       return session;
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }
+
+  switchToUser(account: Types.AdminAccount): Types.AuthSession {
+    const session: Types.AuthSession = {
+      user_id: account.user_id,
+      username: account.display_name,
+      has_profile: account.has_profile,
+      provider: 'local',
+    };
+    this.setActiveSession(session);
+    return session;
+  }
+
+  async loginWithGoogle(credential: string): Promise<Types.AuthSession> {
+    try {
+      const response = await this.client.post('/auth/google', { credential });
+      const session = response.data as Types.AuthSession;
+      this.setActiveSession(session);
+      return session;
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }
+
+  async getAdminUsers(): Promise<Types.AdminAccount[]> {
+    try {
+      const response = await this.client.get('/admin/users');
+      return response.data;
+    } catch (error) {
+      throw toApiError(error);
+    }
+  }
+
+  async deleteAdminUser(userId: string): Promise<void> {
+    try {
+      await this.client.delete(`/admin/users/${encodeURIComponent(userId)}`);
     } catch (error) {
       throw toApiError(error);
     }

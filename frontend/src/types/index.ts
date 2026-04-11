@@ -3,6 +3,18 @@ export interface AuthSession {
   user_id: string;
   username: string;
   has_profile: boolean;
+  email?: string;
+  picture?: string;
+  provider?: "local" | "google";
+}
+
+export interface AdminAccount {
+  user_id: string;
+  display_name: string;
+  has_profile: boolean;
+  has_plan: boolean;
+  session_count: number;
+  plan_name?: string | null;
 }
 
 export interface UserProfile {
@@ -22,6 +34,8 @@ export interface UserProfile {
 export interface Exercise {
   name: string;
   muscle_group: string;
+  primary_muscle?: string | null;
+  secondary_muscle?: string | null;
 }
 
 // Set Entry Types
@@ -29,6 +43,11 @@ export interface SetEntry {
   set_number: number;
   reps: number;
   weight: number;
+  side: "both" | "left" | "right" | "left-right";
+  left_reps?: number;
+  left_weight?: number;
+  right_reps?: number;
+  right_weight?: number;
 }
 
 // Exercise Log Types

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 from models.user_profile import UserProfile
 from models.workout_plan import WorkoutPlan
 from models.workout_session import WorkoutSession
@@ -38,6 +39,53 @@ def ensure_data_dir():
 def ensure_user_dir(user_id=None):
     ensure_data_dir()
     os.makedirs(get_user_dir(user_id), exist_ok=True)
+
+
+def list_accounts():
+    ensure_data_dir()
+    accounts = []
+
+    candidate_ids = []
+    if os.path.exists(USER_FILE) or os.path.exists(PLAN_FILE) or os.path.exists(SESSION_FILE):
+        candidate_ids.append("default")
+
+    if os.path.isdir(USERS_DIR):
+        candidate_ids.extend(
+            name for name in os.listdir(USERS_DIR)
+            if os.path.isdir(os.path.join(USERS_DIR, name))
+        )
+
+    for user_id in sorted(set(candidate_ids)):
+        user = load_user(user_id)
+        plan = load_plan(user_id)
+        sessions = load_sessions(user_id)
+        accounts.append({
+            "user_id": user_id,
+            "display_name": user.name if user else user_id,
+            "has_profile": user is not None,
+            "has_plan": plan is not None,
+            "session_count": len(sessions),
+            "plan_name": plan.plan_name if plan else None,
+        })
+
+    return accounts
+
+
+def delete_account(user_id):
+    normalized = normalize_user_id(user_id)
+    if normalized == "default":
+        deleted = False
+        for path in (USER_FILE, PLAN_FILE, SESSION_FILE):
+            if os.path.exists(path):
+                os.remove(path)
+                deleted = True
+        return deleted
+
+    account_dir = get_user_dir(normalized)
+    if os.path.isdir(account_dir):
+        shutil.rmtree(account_dir)
+        return True
+    return False
 
 
 # Save User Information

@@ -34,13 +34,16 @@ def _session_to_response(session: WorkoutSession) -> WorkoutSessionResponse:
             sets_data.append({
                 "set_number": set_entry.set_number,
                 "reps": set_entry.reps,
-                "weight": set_entry.weight
+                "weight": set_entry.weight,
+                "side": set_entry.side
             })
 
         exercise_logs_data.append({
             "exercise": {
                 "name": log.exercise.name,
-                "muscle_group": log.exercise.muscle_group
+                "muscle_group": log.exercise.muscle_group,
+                "primary_muscle": log.exercise.primary_muscle,
+                "secondary_muscle": log.exercise.secondary_muscle
             },
             "sets": sets_data
         })
@@ -64,11 +67,16 @@ async def create_session(session_data: WorkoutSessionCreate, user_id: str = Depe
         )
 
         for log_data in session_data.exercise_logs:
-            exercise = Exercise(log_data.exercise.name, log_data.exercise.muscle_group)
+            exercise = Exercise(
+                log_data.exercise.name,
+                log_data.exercise.muscle_group,
+                log_data.exercise.primary_muscle,
+                log_data.exercise.secondary_muscle,
+            )
             exercise_log = ExerciseLog(exercise)
 
             for set_data in log_data.sets:
-                set_entry = SetEntry(set_data.set_number, set_data.reps, set_data.weight)
+                set_entry = SetEntry(set_data.set_number, set_data.reps, set_data.weight, set_data.side)
                 exercise_log.add_set(set_entry)
 
             session.add_exercise_log(exercise_log)

@@ -27,7 +27,10 @@ def export_sessions_to_csv(sessions, filepath):
                     'workout_label': session.workout_label,
                     'exercise': exercise_log.exercise.name,
                     'muscle_group': exercise_log.exercise.muscle_group,
+                    'primary_muscle': exercise_log.exercise.primary_muscle or '',
+                    'secondary_muscle': exercise_log.exercise.secondary_muscle or '',
                     'set_num': set_entry.set_number,
+                    'side': set_entry.side,
                     'reps': set_entry.reps,
                     'weight_kg': set_entry.weight
                 })
@@ -112,7 +115,9 @@ def export_plan_to_csv(plan, filepath):
                 'day_name': day.day_name,
                 'workout_label': day.workout_label,
                 'exercise': exercise.name,
-                'muscle_group': exercise.muscle_group
+                'muscle_group': exercise.muscle_group,
+                'primary_muscle': exercise.primary_muscle or '',
+                'secondary_muscle': exercise.secondary_muscle or ''
             })
 
     if not rows:

@@ -1,0 +1,17 @@
+{
+    "plan_name": "My Split",
+    "workout_days": [
+        {
+            "day_name": "sunday",
+            "workout_label": "day 1",
+            "exercises": [
+                {
+                    "name": "singe leg curls",
+                    "muscle_group": "hamstring",
+                    "primary_muscle": null,
+                    "secondary_muscle": null
+                }
+            ]
+        }
+    ]
+}

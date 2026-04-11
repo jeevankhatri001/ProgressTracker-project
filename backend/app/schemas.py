@@ -8,11 +8,29 @@ class LoginRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=50)
 
 
+class GoogleLoginRequest(BaseModel):
+    """Request schema for Google Identity Services login"""
+    credential: str = Field(..., min_length=1)
+
+
 class LoginResponse(BaseModel):
     """Response schema for active local account"""
     user_id: str
     username: str
     has_profile: bool
+    email: Optional[str] = None
+    picture: Optional[str] = None
+    provider: str = "local"
+
+
+class AdminAccountResponse(BaseModel):
+    """Response schema for local admin account rows"""
+    user_id: str
+    display_name: str
+    has_profile: bool
+    has_plan: bool
+    session_count: int
+    plan_name: Optional[str] = None
 
 # ── User Profile Schema ──
 
@@ -47,17 +65,19 @@ class ExerciseCreate(BaseModel):
     """Request schema for creating an exercise"""
     name: str = Field(..., min_length=1, max_length=100)
     muscle_group: str = Field(..., min_length=1)
+    primary_muscle: Optional[str] = None
+    secondary_muscle: Optional[str] = None
 
-    @validator('muscle_group')
-    def validate_muscle_group(cls, v):
+    @staticmethod
+    def validate_muscle_value(v):
         valid = {
             "chest", "back", "shoulder", "biceps", "triceps",
             "legs", "calves", "glutes", "quads", "hamstring",
             "abs", "full body", "upper chest", "middle chest", "lower chest",
             "inner chest", "upper back", "middle back", "lower back", "lats",
-            "traps", "front delts", "side delts", "rear delts",
+            "upper lats", "lower lats", "traps", "front delts", "side delts", "rear delts",
             "long head biceps", "short head biceps", "brachialis",
-            "long head triceps", "lateral head triceps", "medial head triceps",
+            "all head triceps", "long head triceps", "lateral head triceps", "medial head triceps",
             "upper legs", "inner thighs", "outer thighs", "adductors",
             "gastrocnemius", "soleus", "outer calves", "upper glutes",
             "lower glutes", "glute medius", "glute max", "upper quads",
@@ -69,6 +89,22 @@ class ExerciseCreate(BaseModel):
         if v.lower() not in valid:
             raise ValueError(f"Muscle group must be one of {valid}")
         return v.lower()
+
+    @validator('muscle_group')
+    def validate_muscle_group(cls, v):
+        return cls.validate_muscle_value(v)
+
+    @validator('secondary_muscle')
+    def validate_secondary_muscle(cls, v):
+        if v is None or not v.strip():
+            return None
+        return cls.validate_muscle_value(v)
+
+    @validator('primary_muscle')
+    def validate_primary_muscle(cls, v):
+        if v is None or not v.strip():
+            return None
+        return cls.validate_muscle_value(v)
 
 
 class ExerciseResponse(ExerciseCreate):
@@ -83,6 +119,15 @@ class SetEntryCreate(BaseModel):
     set_number: int = Field(..., gt=0)
     reps: int = Field(..., gt=0)
     weight: float = Field(..., ge=0)
+    side: str = "both"
+
+    @validator('side')
+    def validate_side(cls, v):
+        valid = {"both", "left", "right"}
+        normalized = (v or "both").strip().lower()
+        if normalized not in valid:
+            raise ValueError(f"Side must be one of {valid}")
+        return normalized
 
 
 class SetEntryResponse(SetEntryCreate):

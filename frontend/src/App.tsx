@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -12,9 +12,9 @@ import {
   YAxis,
 } from 'recharts';
 import api from './services/api';
-import type { AuthSession, Exercise, SetEntry, UserProfile, WorkoutDay, WorkoutPlan, WorkoutSession } from './types';
+import type { AdminAccount, AuthSession, Exercise, SetEntry, UserProfile, WorkoutDay, WorkoutPlan, WorkoutSession } from './types';
 
-type Page = 'dashboard' | 'plan' | 'log' | 'history' | 'analytics' | 'export' | 'settings';
+type Page = 'dashboard' | 'plan' | 'log' | 'history' | 'analytics' | 'export' | 'settings' | 'admin';
 
 type ProfileFormState = {
   name: string;
@@ -37,10 +37,13 @@ type SessionFormState = {
   entries: SessionEntryForm[];
 };
 
+type SetSide = SetEntry['side'];
+
 type EditableExercise = {
   name: string;
   mainMuscle: string;
-  subMuscle: string;
+  primaryMuscle: string;
+  secondaryMuscle: string;
 };
 
 type EditableWorkoutDay = {
@@ -60,6 +63,11 @@ type AppNotice = {
   message: string;
 } | null;
 
+const googleClientId =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '173831809916-12q81jpgkr8k0uavm84m9k8l8i8h6c99.apps.googleusercontent.com';
+const adminEmail = 'jeevankhatri001@gmail.com';
+
 const pages: Array<{ id: Page; label: string; eyebrow: string }> = [
   { id: 'dashboard', label: 'Dashboard', eyebrow: 'Snapshot' },
   { id: 'plan', label: 'Plan Studio', eyebrow: 'Structure' },
@@ -68,9 +76,11 @@ const pages: Array<{ id: Page; label: string; eyebrow: string }> = [
   { id: 'analytics', label: 'Analytics', eyebrow: 'Progress' },
   { id: 'export', label: 'Export', eyebrow: 'Backups' },
   { id: 'settings', label: 'Settings', eyebrow: 'Control' },
+  { id: 'admin', label: 'Admin', eyebrow: 'Users' },
 ];
 
 const sexOptions: UserProfile['sex'][] = ['male', 'female', 'prefer not to say'];
+const sideOptions: SetSide[] = ['both', 'left-right'];
 
 const presetSeeds: Record<number, { name: string; days: WorkoutDay[] }> = {
   2: {
@@ -324,10 +334,10 @@ const todayIso = new Date().toISOString().slice(0, 10);
 const weekdayOptions = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const muscleGroups = {
   chest: ['upper chest', 'middle chest', 'lower chest', 'inner chest'],
-  back: ['upper back', 'middle back', 'lower back', 'lats', 'traps'],
-  shoulder: ['front delts', 'side delts', 'rear delts'],
+  back: ['upper back', 'middle back', 'lower back', 'lats', 'upper lats', 'lower lats'],
+  shoulder: ['front delts', 'side delts', 'rear delts', 'traps'],
   biceps: ['long head biceps', 'short head biceps', 'brachialis'],
-  triceps: ['long head triceps', 'lateral head triceps', 'medial head triceps'],
+  triceps: ['all head triceps', 'long head triceps', 'lateral head triceps', 'medial head triceps'],
   legs: ['upper legs', 'inner thighs', 'outer thighs', 'adductors'],
   calves: ['gastrocnemius', 'soleus', 'outer calves'],
   glutes: ['upper glutes', 'lower glutes', 'glute medius', 'glute max'],
@@ -344,7 +354,8 @@ function createEditableExercise(): EditableExercise {
   return {
     name: '',
     mainMuscle: 'chest',
-    subMuscle: muscleGroups.chest[0],
+    primaryMuscle: '',
+    secondaryMuscle: '',
   };
 }
 
@@ -426,9 +437,45 @@ function buildSessionForm(day: WorkoutDay): SessionFormState {
     workoutDayName: day.day_name,
     entries: day.exercises.map((exercise) => ({
       exercise,
-      sets: Array.from({ length: 3 }, (_, index) => ({ set_number: index + 1, reps: 10, weight: 0 })),
+      sets: Array.from({ length: 3 }, (_, index) => createSetEntry(index + 1)),
     })),
   };
+}
+
+function createSetEntry(setNumber: number, previousSet?: SetEntry): SetEntry {
+  const reps = previousSet?.reps ?? 10;
+  const weight = previousSet?.weight ?? 0;
+  return {
+    set_number: setNumber,
+    reps,
+    weight,
+    side: previousSet?.side ?? 'both',
+    left_reps: previousSet?.left_reps ?? reps,
+    left_weight: previousSet?.left_weight ?? weight,
+    right_reps: previousSet?.right_reps ?? reps,
+    right_weight: previousSet?.right_weight ?? weight,
+  };
+}
+
+function expandSetForPayload(setEntry: SetEntry): SetEntry[] {
+  if (setEntry.side !== 'left-right') {
+    return [{ ...setEntry, side: setEntry.side || 'both' }];
+  }
+
+  return [
+    {
+      set_number: setEntry.set_number,
+      reps: setEntry.left_reps ?? setEntry.reps,
+      weight: setEntry.left_weight ?? setEntry.weight,
+      side: 'left',
+    },
+    {
+      set_number: setEntry.set_number,
+      reps: setEntry.right_reps ?? setEntry.reps,
+      weight: setEntry.right_weight ?? setEntry.weight,
+      side: 'right',
+    },
+  ];
 }
 
 function createPresetPlan(daysPerWeek: number): WorkoutPlan {
@@ -460,7 +507,9 @@ function sanitizeCustomPlan(planState: CustomPlanState): WorkoutPlan {
         exercises: day.exercises
           .map((exercise) => ({
             name: exercise.name.trim(),
-            muscle_group: exercise.subMuscle.trim().toLowerCase(),
+            muscle_group: exercise.mainMuscle.trim().toLowerCase(),
+            primary_muscle: exercise.primaryMuscle.trim() ? exercise.primaryMuscle.trim().toLowerCase() : null,
+            secondary_muscle: exercise.secondaryMuscle.trim() ? exercise.secondaryMuscle.trim().toLowerCase() : null,
           }))
           .filter((exercise) => exercise.name.length > 0),
       }))
@@ -516,9 +565,11 @@ export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [authSession, setAuthSession] = useState<AuthSession | null>(() => api.getStoredSession());
   const [loginName, setLoginName] = useState('');
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminAccount[]>([]);
   const [loading, setLoading] = useState(() => Boolean(api.getStoredSession()));
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
   const [notice, setNotice] = useState<AppNotice>(null);
@@ -527,6 +578,7 @@ export default function App() {
   const [customPlan, setCustomPlan] = useState<CustomPlanState>(createCustomPlan(4));
 
   const analytics = useMemo(() => deriveAnalytics(sessions), [sessions]);
+  const isAdmin = authSession?.email?.toLowerCase() === adminEmail;
   const recommendedPlan = useMemo(() => {
     const requestedDays = Number(profileForm.training_days_per_week || user?.training_days_per_week || 4);
     return createPresetPlan(requestedDays);
@@ -548,10 +600,66 @@ export default function App() {
   }, [authSession]);
 
   useEffect(() => {
+    if (authSession || !googleButtonRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+    let rendered = false;
+    let retryTimer: number | undefined;
+
+    const renderGoogleButton = () => {
+      if (cancelled || rendered) {
+        return;
+      }
+
+      if (!window.google || !googleButtonRef.current) {
+        retryTimer = window.setTimeout(renderGoogleButton, 250);
+        return;
+      }
+
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (response) => {
+          if (response.credential) {
+            void handleGoogleLogin(response.credential);
+          } else {
+            setNotice({ kind: 'error', message: 'Google did not return a login credential.' });
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: 'filled_black',
+        size: 'large',
+        type: 'standard',
+        shape: 'rectangular',
+        text: 'continue_with',
+        width: 280,
+      });
+      rendered = true;
+    };
+
+    renderGoogleButton();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) {
+        window.clearTimeout(retryTimer);
+      }
+    };
+  }, [authSession]);
+
+  useEffect(() => {
     if (plan && !sessionForm) {
       setSessionForm(buildSessionForm(plan.workout_days[0]));
     }
   }, [plan, sessionForm]);
+
+  useEffect(() => {
+    if (authSession && isAdmin && activePage === 'admin') {
+      void loadAdminUsers();
+    }
+  }, [activePage, authSession, isAdmin]);
 
   async function loadApplication() {
     setLoading(true);
@@ -569,6 +677,23 @@ export default function App() {
       setNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Could not reach the API.' });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadAdminUsers() {
+    if (!isAdmin) {
+      setNotice({ kind: 'error', message: 'Admin access is only available for the owner account.' });
+      return;
+    }
+
+    setBusyLabel('Loading users');
+    setNotice(null);
+    try {
+      setAdminUsers(await api.getAdminUsers());
+    } catch (error) {
+      setNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Could not load users.' });
+    } finally {
+      setBusyLabel(null);
     }
   }
 
@@ -593,6 +718,20 @@ export default function App() {
     }
   }
 
+  async function handleGoogleLogin(credential: string) {
+    setBusyLabel('Signing in');
+    setNotice(null);
+    try {
+      const session = await api.loginWithGoogle(credential);
+      setAuthSession(session);
+      setActivePage('dashboard');
+    } catch (error) {
+      setNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Google login failed.' });
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
   function handleLogout() {
     api.logout();
     setAuthSession(null);
@@ -603,6 +742,36 @@ export default function App() {
     setActivePage('dashboard');
     setNotice(null);
     setLoginName('');
+  }
+
+  async function handleSwitchUser(account: AdminAccount) {
+    const nextSession = api.switchToUser(account);
+    setAuthSession(nextSession);
+    setActivePage('dashboard');
+    setNotice({ kind: 'success', message: `Switched to ${account.display_name}.` });
+    await loadApplication();
+  }
+
+  async function handleDeleteAdminUser(account: AdminAccount) {
+    if (!window.confirm(`Delete all data for ${account.display_name}?`)) {
+      return;
+    }
+
+    setBusyLabel('Deleting user');
+    setNotice(null);
+    try {
+      await api.deleteAdminUser(account.user_id);
+      setAdminUsers((current) => current.filter((userAccount) => userAccount.user_id !== account.user_id));
+      if (authSession?.user_id === account.user_id) {
+        handleLogout();
+      } else {
+        setNotice({ kind: 'success', message: `Deleted ${account.display_name}.` });
+      }
+    } catch (error) {
+      setNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Could not delete user.' });
+    } finally {
+      setBusyLabel(null);
+    }
   }
 
   async function handleCreateProfile(event: FormEvent<HTMLFormElement>) {
@@ -672,7 +841,7 @@ export default function App() {
         sessionForm.workoutDayName,
       exercise_logs: sessionForm.entries.map((entry) => ({
         exercise: entry.exercise,
-        sets: entry.sets.filter((setEntry) => setEntry.reps > 0),
+        sets: entry.sets.flatMap(expandSetForPayload).filter((setEntry) => setEntry.reps > 0),
       })),
     };
 
@@ -823,7 +992,8 @@ export default function App() {
                     ? {
                         ...exercise,
                         mainMuscle: value,
-                        subMuscle: muscleGroups[value as MainMuscle][0],
+                        primaryMuscle: '',
+                        secondaryMuscle: '',
                       }
                     : { ...exercise, [field]: value }
                   : exercise,
@@ -869,6 +1039,53 @@ export default function App() {
     });
   }
 
+  function updateSplitSetValue(
+    exerciseIndex: number,
+    setIndex: number,
+    field: 'left_reps' | 'left_weight' | 'right_reps' | 'right_weight',
+    value: string,
+  ) {
+    setSessionForm((current) => {
+      if (!current) {
+        return current;
+      }
+      return {
+        ...current,
+        entries: current.entries.map((entry, entryIndex) =>
+          entryIndex !== exerciseIndex
+            ? entry
+            : {
+                ...entry,
+                sets: entry.sets.map((setEntry, currentSetIndex) =>
+                  currentSetIndex === setIndex ? { ...setEntry, [field]: Number(value) } : setEntry,
+                ),
+              },
+        ),
+      };
+    });
+  }
+
+  function updateSetSide(exerciseIndex: number, setIndex: number, side: SetSide) {
+    setSessionForm((current) => {
+      if (!current) {
+        return current;
+      }
+      return {
+        ...current,
+        entries: current.entries.map((entry, entryIndex) =>
+          entryIndex !== exerciseIndex
+            ? entry
+            : {
+                ...entry,
+                sets: entry.sets.map((setEntry, currentSetIndex) =>
+                  currentSetIndex === setIndex ? { ...setEntry, side } : setEntry,
+                ),
+              },
+        ),
+      };
+    });
+  }
+
   function addSetRow(exerciseIndex: number) {
     setSessionForm((current) => {
       if (!current) {
@@ -883,11 +1100,7 @@ export default function App() {
                 ...entry,
                 sets: [
                   ...entry.sets,
-                  {
-                    set_number: entry.sets.length + 1,
-                    reps: entry.sets[entry.sets.length - 1]?.reps ?? 10,
-                    weight: entry.sets[entry.sets.length - 1]?.weight ?? 0,
-                  },
+                  createSetEntry(entry.sets.length + 1, entry.sets[entry.sets.length - 1]),
                 ],
               },
         ),
@@ -947,6 +1160,12 @@ export default function App() {
 
             {notice && <div className={`notice notice-${notice.kind}`}>{notice.message}</div>}
 
+            <div className="google-login-wrap" ref={googleButtonRef} />
+
+            <div className="login-divider">
+              <span>or</span>
+            </div>
+
             <form className="login-form" onSubmit={handleLogin}>
               <label>
                 <span>Username</span>
@@ -969,204 +1188,145 @@ export default function App() {
 
   if (!activeUser) {
     return (
-      <div className="shell">
-        <aside className="sidebar">
-          <div className="brand-block">
-            <p className="eyebrow">Progress Tracking</p>
-            <h1>Iron Ledger</h1>
-            <p className="sidebar-copy">A training space that feels deliberate: your split, your sessions, your numbers.</p>
-          </div>
-
-          <nav className="nav-stack">
-            {pages.map((page) => (
-              <button
-                key={page.id}
-                type="button"
-                className={`nav-card ${activePage === page.id ? 'nav-card-active' : ''}`}
-                onClick={() => setActivePage(page.id)}
-                disabled={page.id !== 'dashboard'}
-              >
-                <span>{page.eyebrow}</span>
-                <strong>{page.label}</strong>
-              </button>
-            ))}
-          </nav>
-
-          <div className="status-panel">
-            <p className="eyebrow">Current Mode</p>
-            <strong>First-time setup</strong>
-            <p>Logged in as {authSession.username}. Create your profile and choose a split to unlock the full app.</p>
-            <button className="ghost-button sidebar-action" type="button" onClick={handleLogout}>
+      <div className="setup-shell">
+        <main className="setup-stage">
+          <header className="setup-header">
+            <div>
+              <p className="eyebrow">Iron Ledger</p>
+              <h1>Set up your profile.</h1>
+              <p>Logged in as {authSession.username}. Your workouts and history will stay under this account.</p>
+            </div>
+            <button className="ghost-button" type="button" onClick={handleLogout}>
               Logout
             </button>
-          </div>
-        </aside>
-
-        <main className="main-stage">
-          <header className="topbar">
-            <div>
-              <p className="eyebrow">Strength system</p>
-              <h2>Build your training headquarters.</h2>
-            </div>
-            <div className="topbar-meta">
-              <div className="meta-chip">
-                <span>Today</span>
-                <strong>{formatDateLabel(todayIso)}</strong>
-              </div>
-              {busyLabel && (
-                <div className="meta-chip meta-chip-highlight">
-                  <span>Working</span>
-                  <strong>{busyLabel}</strong>
-                </div>
-              )}
-            </div>
           </header>
 
           {notice && <div className={`notice notice-${notice.kind}`}>{notice.message}</div>}
-          <section className="content-grid single-column">
-            <article className="panel hero-panel">
-              <div className="hero-copy">
-                <p className="eyebrow">Onboarding</p>
-                <h3>Set up the profile once, then train inside a site that actually feels custom.</h3>
-                <p>We keep the setup direct: profile first, then a structured split tailored to your weekly frequency.</p>
-              </div>
-              <div className="hero-stat-grid">
-                <div className="stat-card stat-card-dark">
-                  <span>Focus</span>
-                  <strong>Strength + consistency</strong>
-                </div>
-                <div className="stat-card">
-                  <span>Flow</span>
-                  <strong>Profile, plan, log, review</strong>
+
+          <section className="setup-grid">
+            <article className="panel setup-form-panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Profile</p>
+                  <h3>Your baseline</h3>
                 </div>
               </div>
+
+              <form className="form-grid compact-form" onSubmit={handleCreateProfile}>
+                <label>
+                  <span>Name</span>
+                  <input
+                    value={profileForm.name}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Jeevan"
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Age</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={profileForm.age}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, age: event.target.value }))}
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Sex</span>
+                  <select
+                    value={profileForm.sex}
+                    onChange={(event) =>
+                      setProfileForm((current) => ({ ...current, sex: event.target.value as UserProfile['sex'] }))
+                    }
+                  >
+                    {sexOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {toTitleCase(option)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  <span>Weight (kg)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.1"
+                    value={profileForm.weight}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, weight: event.target.value }))}
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Height (cm)</span>
+                  <input
+                    type="number"
+                    min="80"
+                    step="1"
+                    value={profileForm.height}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, height: event.target.value }))}
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Experience</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={profileForm.training_experience_years}
+                    onChange={(event) =>
+                      setProfileForm((current) => ({ ...current, training_experience_years: event.target.value }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  <span>Days / week</span>
+                  <input
+                    type="number"
+                    min="2"
+                    max="6"
+                    value={profileForm.training_days_per_week}
+                    onChange={(event) =>
+                      setProfileForm((current) => ({ ...current, training_days_per_week: event.target.value }))
+                    }
+                    required
+                  />
+                </label>
+
+                <button className="primary-button form-submit" type="submit" disabled={!!busyLabel}>
+                  {busyLabel || 'Create profile'}
+                </button>
+              </form>
             </article>
 
-            <div className="content-grid onboarding-grid">
-              <article className="panel">
-                <div className="panel-header">
-                  <div>
-                    <p className="eyebrow">Profile</p>
-                    <h3>Your baseline</h3>
+            <aside className="panel setup-summary-panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Next split</p>
+                  <h3>{recommendedPlan.plan_name}</h3>
+                </div>
+                <div className="pill">{recommendedPlan.workout_days.length} days</div>
+              </div>
+              <div className="preset-preview">
+                {recommendedPlan.workout_days.slice(0, 4).map((day) => (
+                  <div key={`${day.day_name}-${day.workout_label}`} className="preset-day">
+                    <strong>
+                      {day.day_name} / {day.workout_label}
+                    </strong>
+                    <p>{day.exercises.slice(0, 3).map((exercise) => exercise.name).join(' / ')}</p>
                   </div>
-                </div>
-
-                <form className="form-grid" onSubmit={handleCreateProfile}>
-                  <label>
-                    <span>Name</span>
-                    <input
-                      value={profileForm.name}
-                      onChange={(event) => setProfileForm((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="Jeevan"
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    <span>Age</span>
-                    <input
-                      type="number"
-                      min="1"
-                      value={profileForm.age}
-                      onChange={(event) => setProfileForm((current) => ({ ...current, age: event.target.value }))}
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    <span>Sex</span>
-                    <select
-                      value={profileForm.sex}
-                      onChange={(event) =>
-                        setProfileForm((current) => ({ ...current, sex: event.target.value as UserProfile['sex'] }))
-                      }
-                    >
-                      {sexOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {toTitleCase(option)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label>
-                    <span>Weight (kg)</span>
-                    <input
-                      type="number"
-                      min="1"
-                      step="0.1"
-                      value={profileForm.weight}
-                      onChange={(event) => setProfileForm((current) => ({ ...current, weight: event.target.value }))}
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    <span>Height (cm)</span>
-                    <input
-                      type="number"
-                      min="80"
-                      step="1"
-                      value={profileForm.height}
-                      onChange={(event) => setProfileForm((current) => ({ ...current, height: event.target.value }))}
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    <span>Experience (years)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={profileForm.training_experience_years}
-                      onChange={(event) =>
-                        setProfileForm((current) => ({ ...current, training_experience_years: event.target.value }))
-                      }
-                      required
-                    />
-                  </label>
-
-                  <label>
-                    <span>Training days / week</span>
-                    <input
-                      type="number"
-                      min="2"
-                      max="6"
-                      value={profileForm.training_days_per_week}
-                      onChange={(event) =>
-                        setProfileForm((current) => ({ ...current, training_days_per_week: event.target.value }))
-                      }
-                      required
-                    />
-                  </label>
-
-                  <button className="primary-button" type="submit" disabled={!!busyLabel}>
-                    Create profile
-                  </button>
-                </form>
-              </article>
-
-              <article className="panel panel-accent">
-                <div className="panel-header">
-                  <div>
-                    <p className="eyebrow">Recommended split</p>
-                    <h3>{recommendedPlan.plan_name}</h3>
-                  </div>
-                  <div className="pill">{recommendedPlan.workout_days.length} days</div>
-                </div>
-                <div className="preset-preview">
-                  {recommendedPlan.workout_days.map((day) => (
-                    <div key={`${day.day_name}-${day.workout_label}`} className="preset-day">
-                      <strong>
-                        {day.day_name} / {day.workout_label}
-                      </strong>
-                      <p>{day.exercises.map((exercise) => exercise.name).join(' / ')}</p>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            </div>
+                ))}
+              </div>
+            </aside>
           </section>
         </main>
       </div>
@@ -1395,6 +1555,13 @@ export default function App() {
                 </div>
 
                 <div className="custom-exercise-list">
+                  <div className="custom-exercise-row custom-exercise-row-head">
+                    <span>Exercise</span>
+                    <span>Main muscle</span>
+                    <span>Primary muscle</span>
+                    <span>Secondary muscle</span>
+                    <span />
+                  </div>
                   {day.exercises.map((exercise, exerciseIndex) => (
                     <div key={`${day.id}-${exerciseIndex}`} className="custom-exercise-row">
                       <input
@@ -1405,6 +1572,7 @@ export default function App() {
                       <select
                         value={exercise.mainMuscle}
                         onChange={(event) => updateCustomExercise(day.id, exerciseIndex, 'mainMuscle', event.target.value)}
+                        aria-label="Main muscle"
                       >
                         {muscleGroupOptions.map((option) => (
                           <option key={option} value={option}>
@@ -1413,9 +1581,23 @@ export default function App() {
                         ))}
                       </select>
                       <select
-                        value={exercise.subMuscle}
-                        onChange={(event) => updateCustomExercise(day.id, exerciseIndex, 'subMuscle', event.target.value)}
+                        value={exercise.primaryMuscle}
+                        onChange={(event) => updateCustomExercise(day.id, exerciseIndex, 'primaryMuscle', event.target.value)}
+                        aria-label="Primary muscle"
                       >
+                        <option value="">No primary detail</option>
+                        {muscleGroups[exercise.mainMuscle as MainMuscle].map((option) => (
+                          <option key={option} value={option}>
+                            {toTitleCase(option)}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={exercise.secondaryMuscle}
+                        onChange={(event) => updateCustomExercise(day.id, exerciseIndex, 'secondaryMuscle', event.target.value)}
+                        aria-label="Secondary muscle"
+                      >
+                        <option value="">No secondary detail</option>
                         {muscleGroups[exercise.mainMuscle as MainMuscle].map((option) => (
                           <option key={option} value={option}>
                             {toTitleCase(option)}
@@ -1564,7 +1746,11 @@ export default function App() {
                 <section key={entry.exercise.name} className="exercise-card">
                   <div className="exercise-header">
                     <div>
-                      <p className="eyebrow">{toTitleCase(entry.exercise.muscle_group)}</p>
+                      <p className="eyebrow">
+                        {toTitleCase(entry.exercise.muscle_group)}
+                        {entry.exercise.primary_muscle ? ` / ${toTitleCase(entry.exercise.primary_muscle)}` : ''}
+                        {entry.exercise.secondary_muscle ? ` / ${toTitleCase(entry.exercise.secondary_muscle)}` : ''}
+                      </p>
                       <h4>{entry.exercise.name}</h4>
                     </div>
                     <button className="mini-button" type="button" onClick={() => addSetRow(exerciseIndex)}>
@@ -1575,6 +1761,7 @@ export default function App() {
                   <div className="sets-table">
                     <div className="sets-row sets-row-head">
                       <span>Set</span>
+                      <span>Side</span>
                       <span>Reps</span>
                       <span>Weight (kg)</span>
                       <span />
@@ -1582,19 +1769,69 @@ export default function App() {
                     {entry.sets.map((setEntry, setIndex) => (
                       <div key={`${entry.exercise.name}-${setEntry.set_number}`} className="sets-row">
                         <span className="set-index">{setEntry.set_number}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={setEntry.reps}
-                          onChange={(event) => updateSetValue(exerciseIndex, setIndex, 'reps', event.target.value)}
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          value={setEntry.weight}
-                          onChange={(event) => updateSetValue(exerciseIndex, setIndex, 'weight', event.target.value)}
-                        />
+                        <select
+                          value={setEntry.side}
+                          onChange={(event) => updateSetSide(exerciseIndex, setIndex, event.target.value as SetSide)}
+                          aria-label="Side"
+                        >
+                          {sideOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option === 'left-right' ? 'Left + Right' : toTitleCase(option)}
+                            </option>
+                          ))}
+                        </select>
+                        {setEntry.side === 'left-right' ? (
+                          <>
+                            <div className="side-input-pair">
+                              <span>Left</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={setEntry.left_reps ?? setEntry.reps}
+                                onChange={(event) => updateSplitSetValue(exerciseIndex, setIndex, 'left_reps', event.target.value)}
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                value={setEntry.left_weight ?? setEntry.weight}
+                                onChange={(event) => updateSplitSetValue(exerciseIndex, setIndex, 'left_weight', event.target.value)}
+                              />
+                            </div>
+                            <div className="side-input-pair">
+                              <span>Right</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={setEntry.right_reps ?? setEntry.reps}
+                                onChange={(event) => updateSplitSetValue(exerciseIndex, setIndex, 'right_reps', event.target.value)}
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                value={setEntry.right_weight ?? setEntry.weight}
+                                onChange={(event) => updateSplitSetValue(exerciseIndex, setIndex, 'right_weight', event.target.value)}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <input
+                              type="number"
+                              min="0"
+                              value={setEntry.reps}
+                              onChange={(event) => updateSetValue(exerciseIndex, setIndex, 'reps', event.target.value)}
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={setEntry.weight}
+                              onChange={(event) => updateSetValue(exerciseIndex, setIndex, 'weight', event.target.value)}
+                            />
+                          </>
+                        )}
                         <button className="ghost-button" type="button" onClick={() => removeSetRow(exerciseIndex, setIndex)}>
                           Remove
                         </button>
@@ -1656,7 +1893,16 @@ export default function App() {
                     {session.exercise_logs.map((log) => (
                       <div key={`${session.date}-${log.exercise.name}`} className="history-detail-row">
                         <strong>{log.exercise.name}</strong>
-                        <p>{log.sets.map((setEntry) => `${setEntry.weight} x ${setEntry.reps}`).join(' | ')}</p>
+                        <p>
+                          Main: {toTitleCase(log.exercise.muscle_group)}
+                          {log.exercise.primary_muscle ? ` / Primary: ${toTitleCase(log.exercise.primary_muscle)}` : ''}
+                          {log.exercise.secondary_muscle ? ` / Secondary: ${toTitleCase(log.exercise.secondary_muscle)}` : ''}
+                        </p>
+                        <p>
+                          {log.sets
+                            .map((setEntry) => `${toTitleCase(setEntry.side)}: ${setEntry.weight} x ${setEntry.reps}`)
+                            .join(' | ')}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -1916,6 +2162,71 @@ export default function App() {
     </section>
   );
 
+  const adminView = (
+    <section className="content-grid">
+      <article className="panel hero-panel">
+        <div className="hero-copy">
+          <p className="eyebrow">Admin</p>
+          <h3>Manage local users on this machine.</h3>
+          <p>Review accounts, switch into a user workspace, or delete stored data for accounts you no longer need.</p>
+        </div>
+        <div className="hero-stat-grid">
+          <div className="stat-card stat-card-dark">
+            <span>Users</span>
+            <strong>{adminUsers.length}</strong>
+          </div>
+          <div className="stat-card">
+            <span>Active account</span>
+            <strong>{authSession.username}</strong>
+          </div>
+        </div>
+      </article>
+
+      <article className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Accounts</p>
+            <h3>User list</h3>
+          </div>
+          <button className="mini-button" type="button" onClick={() => void loadAdminUsers()}>
+            Refresh
+          </button>
+        </div>
+
+        {adminUsers.length ? (
+          <div className="admin-user-list">
+            {adminUsers.map((account) => (
+              <article key={account.user_id} className="admin-user-row">
+                <div className="admin-user-main">
+                  <div>
+                    <p className="eyebrow">{account.user_id === authSession.user_id ? 'Active user' : 'User'}</p>
+                    <h4>{account.display_name}</h4>
+                    <p>{account.user_id}</p>
+                  </div>
+                  <div className="admin-user-badges">
+                    <span>{account.has_profile ? 'Profile' : 'No profile'}</span>
+                    <span>{account.has_plan ? account.plan_name || 'Plan' : 'No plan'}</span>
+                    <span>{account.session_count} sessions</span>
+                  </div>
+                </div>
+                <div className="admin-user-actions">
+                  <button className="secondary-button" type="button" onClick={() => void handleSwitchUser(account)}>
+                    Open
+                  </button>
+                  <button className="danger-button" type="button" onClick={() => void handleDeleteAdminUser(account)}>
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-copy">No local users found yet.</p>
+        )}
+      </article>
+    </section>
+  );
+
   const content = {
     dashboard: dashboardView,
     plan: planView,
@@ -1924,6 +2235,7 @@ export default function App() {
     analytics: analyticsView,
     export: exportView,
     settings: settingsView,
+    admin: isAdmin ? adminView : dashboardView,
   }[activePage];
 
   return (
@@ -1936,7 +2248,7 @@ export default function App() {
         </div>
 
         <nav className="nav-stack">
-          {pages.map((page) => (
+          {pages.filter((page) => page.id !== 'admin' || isAdmin).map((page) => (
             <button
               key={page.id}
               type="button"

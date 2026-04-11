@@ -28,7 +28,7 @@ def _create_plan_from_request(plan_data: WorkoutPlanCreate) -> WorkoutPlan:
         day = WorkoutDay(day_data.day_name, day_data.workout_label)
 
         for ex_data in day_data.exercises:
-            exercise = Exercise(ex_data.name, ex_data.muscle_group)
+            exercise = Exercise(ex_data.name, ex_data.muscle_group, ex_data.primary_muscle, ex_data.secondary_muscle)
             day.add_exercise(exercise)
 
         plan.add_workout_day(day)
@@ -44,7 +44,9 @@ def _plan_to_response(plan: WorkoutPlan) -> WorkoutPlanResponse:
         for exercise in day.exercises:
             exercises_data.append({
                 "name": exercise.name,
-                "muscle_group": exercise.muscle_group
+                "muscle_group": exercise.muscle_group,
+                "primary_muscle": exercise.primary_muscle,
+                "secondary_muscle": exercise.secondary_muscle
             })
         days_data.append({
             "day_name": day.day_name,

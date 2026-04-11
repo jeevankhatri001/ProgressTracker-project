@@ -1,0 +1,9 @@
+{
+    "name": "Jeevan",
+    "age": 20,
+    "sex": "male",
+    "weight": 72.0,
+    "height": 1.72,
+    "training_experience_years": 1.5,
+    "training_days_per_week": 6
+}
